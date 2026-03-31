@@ -1,1 +1,48 @@
-https://we.tl/t-M9XaM35QRMyAN44g
+$token = "TON_TOKEN"
+$repo = "maqsystems/Peaklane-2"
+$outFile = "C:\Users\QSYS\Documents\Peaklane\app.zip"
+
+$headers = @{
+  Authorization = "Bearer $token"
+  Accept        = "application/vnd.github+json"
+}
+
+# Récupère toutes les releases
+$releases = Invoke-RestMethod `
+  -Headers $headers `
+  -Uri "https://api.github.com/repos/$repo/releases"
+
+if (-not $releases) {
+  throw "Aucune release trouvée."
+}
+
+# Garde uniquement les prereleases, triées de la plus récente à la plus ancienne
+$prerelease = $releases |
+  Where-Object { $_.prerelease -eq $true } |
+  Sort-Object published_at -Descending |
+  Select-Object -First 1
+
+if (-not $prerelease) {
+  throw "Aucune prerelease trouvée."
+}
+
+# Prend l'asset Windows
+$asset = $prerelease.assets |
+  Where-Object { $_.name -like "*windows.zip" } |
+  Select-Object -First 1
+
+if (-not $asset) {
+  $available = ($prerelease.assets | Select-Object -ExpandProperty name) -join ", "
+  throw "Aucun asset Windows trouvé dans la prerelease. Assets disponibles : $available"
+}
+
+Invoke-WebRequest `
+  -Uri $asset.url `
+  -Headers @{
+    Authorization = "Bearer $token"
+    Accept        = "application/octet-stream"
+  } `
+  -OutFile $outFile
+
+Write-Host "Téléchargement terminé : $outFile"
+Write-Host "Prerelease utilisée : $($prerelease.name) / tag $($prerelease.tag_name)"
